@@ -9,7 +9,6 @@ import androidx.room.Transaction
 import androidx.room.Update
 import chat.rocket.android.db.model.ChatRoom
 import chat.rocket.android.db.model.ChatRoomEntity
-import chat.rocket.common.model.RoomType
 
 @Dao
 abstract class ChatRoomDao : BaseDao<ChatRoomEntity> {
@@ -18,11 +17,33 @@ abstract class ChatRoomDao : BaseDao<ChatRoomEntity> {
         $BASE_QUERY
         WHERE chatrooms.id = :id
         """)
-    abstract fun get(id: String): ChatRoom?
+    abstract fun get(id: String): LiveData<ChatRoom>
 
     @Transaction
     @Query("""
         $BASE_QUERY
+        WHERE chatrooms.id = :id
+        """)
+    abstract fun getSync(id: String): ChatRoom?
+
+    @Transaction
+    @Query("$BASE_QUERY $FILTER_NOT_OPENED")
+    abstract fun getAllSync(): List<ChatRoom>
+
+    @Transaction
+    @Query("""$BASE_QUERY
+            WHERE chatrooms.name LIKE '%' || :query || '%'
+            OR  users.name LIKE '%' || :query || '%'
+            """)
+    abstract fun searchSync(query: String): List<ChatRoom>
+
+    @Query("SELECT COUNT(id) FROM chatrooms WHERE open = 1")
+    abstract fun count(): Long
+
+    @Transaction
+    @Query("""
+        $BASE_QUERY
+        $FILTER_NOT_OPENED
         ORDER BY
 	        CASE
 		        WHEN lastMessageTimeStamp IS NOT NULL THEN lastMessageTimeStamp
@@ -34,6 +55,7 @@ abstract class ChatRoomDao : BaseDao<ChatRoomEntity> {
     @Transaction
     @Query("""
         $BASE_QUERY
+        $FILTER_NOT_OPENED
         ORDER BY
             $TYPE_ORDER,
 	        CASE
@@ -43,24 +65,83 @@ abstract class ChatRoomDao : BaseDao<ChatRoomEntity> {
         """)
     abstract fun getAllGrouped(): LiveData<List<ChatRoom>>
 
+        @Transaction
+        @Query("""
+        $BASE_QUERY
+        $FILTER_NOT_OPENED
+        ORDER BY
+            $UNREAD,
+	        CASE
+		        WHEN lastMessageTimeStamp IS NOT NULL THEN lastMessageTimeStamp
+		        ELSE updatedAt
+	        END DESC
+        """)
+    abstract fun getAllUnread(): LiveData<List<ChatRoom>>
+
     @Transaction
     @Query("""
         $BASE_QUERY
-        ORDER BY name
+        $FILTER_NOT_OPENED
+        ORDER BY
+            $UNREAD,
+            name COLLATE NOCASE
+        """)
+    abstract fun getAllAlphabeticallyUnread(): LiveData<List<ChatRoom>>
+
+    @Transaction
+    @Query("""
+        $BASE_QUERY
+        $FILTER_NOT_OPENED
+        ORDER BY
+            $TYPE_ORDER,
+            $UNREAD,
+            name COLLATE NOCASE
+        """)
+    abstract fun getAllAlphabeticallyGroupedUnread(): LiveData<List<ChatRoom>>
+
+    @Transaction
+    @Query("""
+        $BASE_QUERY
+        $FILTER_NOT_OPENED
+        ORDER BY
+            $TYPE_ORDER,
+            $UNREAD,
+	        CASE
+		        WHEN lastMessageTimeStamp IS NOT NULL THEN lastMessageTimeStamp
+		        ELSE updatedAt
+	        END DESC
+        """)
+    abstract fun getAllGroupedUnread(): LiveData<List<ChatRoom>>
+
+    @Transaction
+    @Query("""
+        $BASE_QUERY
+        $FILTER_NOT_OPENED
+        ORDER BY name COLLATE NOCASE
         """)
     abstract fun getAllAlphabetically(): LiveData<List<ChatRoom>>
 
     @Transaction
     @Query("""
         $BASE_QUERY
+        $FILTER_NOT_OPENED
         ORDER BY
             $TYPE_ORDER,
-            name
+            name COLLATE NOCASE
         """)
     abstract fun getAllAlphabeticallyGrouped(): LiveData<List<ChatRoom>>
 
     @Query("DELETE FROM chatrooms WHERE ID = :id")
     abstract fun delete(id: String)
+
+    @Query("DELETE FROM chatrooms")
+    abstract fun delete()
+
+    @Transaction
+    open fun cleanInsert(chatRooms: List<ChatRoomEntity>) {
+        delete()
+        insert(chatRooms)
+    }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract fun insertOrReplace(chatRooms: List<ChatRoomEntity>)
@@ -72,7 +153,7 @@ abstract class ChatRoomDao : BaseDao<ChatRoomEntity> {
     abstract fun update(list: List<ChatRoomEntity>)
 
     @Transaction
-    open fun update(toRemove: List<String>, toInsert: List<ChatRoomEntity>, toUpdate: List<ChatRoomEntity>) {
+    open fun update(toInsert: List<ChatRoomEntity>, toUpdate: List<ChatRoomEntity>, toRemove: List<String>) {
         insertOrReplace(toInsert)
         update(toUpdate)
         toRemove.forEach { id ->
@@ -93,13 +174,23 @@ abstract class ChatRoomDao : BaseDao<ChatRoomEntity> {
             LEFT JOIN users AS lmUsers ON chatrooms.lastMessageUserId = lmUsers.id
         """
 
+        const val FILTER_NOT_OPENED = """
+            WHERE chatrooms.open = 1
+        """
+
         const val TYPE_ORDER = """
             CASE
-		        WHEN type = '${RoomType.CHANNEL}' THEN 1
-		        WHEN type = '${RoomType.PRIVATE_GROUP}' THEN 2
-		        WHEN type = '${RoomType.DIRECT_MESSAGE}' THEN 3
-		        WHEN type = '${RoomType.LIVECHAT}' THEN 4
+		        WHEN type = 'c' THEN 1
+		        WHEN type = 'p' THEN 2
+		        WHEN type = 'd' THEN 3
+		        WHEN type = 'l' THEN 4
 		        ELSE 5
+	        END
+        """
+        const val UNREAD = """
+            CASE
+		        WHEN alert OR unread > 0 THEN 1
+		        ELSE 2
 	        END
         """
     }

@@ -3,14 +3,15 @@ package chat.rocket.android.util.extensions
 import android.graphics.Color
 import android.util.Patterns
 import chat.rocket.common.model.Token
+import okhttp3.HttpUrl
 import timber.log.Timber
 
 fun String.removeTrailingSlash(): String {
-    return if (isNotEmpty() && this[length - 1] == '/') {
-        this.substring(0, length - 1)
-    } else {
-        this
+    var removed = this
+    while (removed.isNotEmpty() && removed[removed.length - 1] == '/') {
+        removed = removed.substring(0, removed.length - 1)
     }
+    return removed
 }
 
 fun String.sanitize(): String {
@@ -20,13 +21,15 @@ fun String.sanitize(): String {
 
 fun String.avatarUrl(
     avatar: String,
+    userId: String?,
+    token: String?,
     isGroupOrChannel: Boolean = false,
     format: String = "jpeg"
 ): String {
     return if (isGroupOrChannel) {
-        "${removeTrailingSlash()}/avatar/%23${avatar.removeTrailingSlash()}?format=$format"
+        "${removeTrailingSlash()}/avatar/%23${avatar.removeTrailingSlash()}?format=$format&rc_uid=$userId&rc_token=$token"
     } else {
-        "${removeTrailingSlash()}/avatar/${avatar.removeTrailingSlash()}?format=$format"
+        "${removeTrailingSlash()}/avatar/${avatar.removeTrailingSlash()}?format=$format&rc_uid=$userId&rc_token=$token"
     }
 }
 
@@ -50,6 +53,8 @@ fun String.termsOfServiceUrl() = "${removeTrailingSlash()}/terms-of-service"
 
 fun String.privacyPolicyUrl() = "${removeTrailingSlash()}/privacy-policy"
 
+fun String.adminPanelUrl() = "${removeTrailingSlash()}/admin/info?layout=embedded"
+
 fun String.isValidUrl(): Boolean = Patterns.WEB_URL.matcher(this).matches()
 
 fun String.parseColor(): Int {
@@ -64,4 +69,18 @@ fun String.parseColor(): Int {
 
 fun String.userId(userId: String?): String? {
     return userId?.let { this.replace(it, "") }
+}
+
+fun String.lowercaseUrl(): String? = HttpUrl.parse(this)?.run {
+    newBuilder().scheme(scheme().toLowerCase()).build().toString()
+}
+
+fun String?.isNotNullNorEmpty(): Boolean = this != null && this.isNotEmpty()
+
+fun String?.isNotNullNorBlank(): Boolean = this != null && this.isNotBlank()
+
+inline fun String?.ifNotNullNotEmpty(block: (String) -> Unit) {
+    if (this != null && this.isNotEmpty()) {
+        block(this)
+    }
 }

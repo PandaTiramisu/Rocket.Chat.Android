@@ -2,16 +2,25 @@ package chat.rocket.android.members.uimodel
 
 import chat.rocket.android.server.domain.useRealName
 import chat.rocket.android.util.extensions.avatarUrl
+import chat.rocket.common.model.Token
 import chat.rocket.common.model.User
+import chat.rocket.common.model.UserStatus
 import chat.rocket.core.model.Value
 
-class MemberUiModel(private val member: User, private val settings: Map<String, Value<Any>>, private val baseUrl: String?) {
+class MemberUiModel(
+    private val member: User,
+    private val settings: Map<String, Value<Any>>,
+    private val baseUrl: String?,
+    private val token: Token?
+) {
+    val userId: String = member.id
     val avatarUri: String?
     val displayName: String
     val realName: String?
     val username: String?
     val email: String?
     val utcOffset: Float?
+    val status: UserStatus?
 
     init {
         avatarUri = getUserAvatar()
@@ -20,12 +29,13 @@ class MemberUiModel(private val member: User, private val settings: Map<String, 
         username = getUserUsername()
         email = getUserEmail()
         utcOffset = getUserUtcOffset()
+        status = getUserStatus()
     }
 
     private fun getUserAvatar(): String? {
         val username = member.username ?: "?"
         return baseUrl?.let {
-            baseUrl.avatarUrl(username, format = "png")
+            baseUrl.avatarUrl(username, token?.userId, token?.authToken, format = "png")
         }
     }
 
@@ -43,4 +53,6 @@ class MemberUiModel(private val member: User, private val settings: Map<String, 
     private fun getUserEmail(): String? = member.emails?.get(0)?.address
 
     private fun getUserUtcOffset(): Float? = member.utcOffset
+
+    private fun getUserStatus(): UserStatus? = member.status
 }

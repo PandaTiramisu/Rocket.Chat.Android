@@ -1,21 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/relative_layout"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/relative_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:focusableInTouchMode="true"
     tools:context=".profile.ui.ProfileFragment">
 
+    <include
+        android:id="@+id/layout_app_bar"
+        layout="@layout/app_bar"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/layout_app_bar">
 
         <LinearLayout
             android:id="@+id/profile_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_margin="@dimen/screen_edge_left_and_right_margins"
             android:gravity="center"
             android:orientation="vertical"
             android:visibility="gone"
@@ -28,38 +35,55 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="32dp" />
 
+            <TextView
+                android:id="@+id/text_status"
+                style="@style/Profile.TextView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/status" />
+
+            <TextView
+                style="@style/Profile.TextView"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/msg_name" />
+
             <EditText
                 android:id="@+id/text_name"
                 style="@style/Profile.EditText"
-                android:layout_marginTop="32dp"
-                android:drawableStart="@drawable/ic_person_black_24dp"
-                android:hint="@string/msg_name"
+                android:layout_width="match_parent"
+                android:drawableStart="@drawable/ic_person_black_20dp"
+                android:hint="@string/msg_profile_name_hint"
                 android:inputType="textCapWords" />
+
+            <TextView
+                style="@style/Profile.TextView"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/msg_username" />
 
             <EditText
                 android:id="@+id/text_username"
                 style="@style/Profile.EditText"
-                android:layout_marginTop="16dp"
-                android:drawableStart="@drawable/ic_at_black_24dp"
-                android:hint="@string/msg_username"
+                android:layout_width="match_parent"
+                android:drawableStart="@drawable/ic_at_black_20dp"
+                android:hint="@string/msg_profile_username_hint"
                 android:inputType="text" />
+
+            <TextView
+                style="@style/Profile.TextView"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/msg_email" />
 
             <EditText
                 android:id="@+id/text_email"
                 style="@style/Profile.EditText"
-                android:layout_marginTop="16dp"
-                android:drawableStart="@drawable/ic_email_black_24dp"
-                android:hint="@string/msg_email"
+                android:layout_width="match_parent"
+                android:layout_marginBottom="16dp"
+                android:drawableStart="@drawable/ic_email_black_20dp"
+                android:hint="@string/msg_profile_email_hint"
                 android:inputType="textEmailAddress" />
-
-            <EditText
-                android:id="@+id/text_avatar_url"
-                style="@style/Profile.EditText"
-                android:layout_marginTop="16dp"
-                android:drawableStart="@drawable/ic_link_black_24dp"
-                android:hint="@string/msg_avatar_url"
-                android:inputType="text"
-                android:layout_marginBottom="16dp"/>
         </LinearLayout>
 
     </ScrollView>
@@ -71,5 +95,20 @@
         android:layout_centerInParent="true"
         app:indicatorColor="@color/colorBlack"
         app:indicatorName="BallPulseIndicator" />
+
+    <View
+        android:id="@+id/view_dim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/colorDim"
+        android:visibility="gone" />
+
+    <include
+        android:id="@+id/layout_update_avatar_options"
+        layout="@layout/update_avatar_options"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:visibility="gone" />
 
 </RelativeLayout>

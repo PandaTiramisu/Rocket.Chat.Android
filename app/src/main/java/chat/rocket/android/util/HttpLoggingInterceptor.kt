@@ -1,13 +1,12 @@
 package chat.rocket.android.util
 
+import chat.rocket.android.BuildConfig
 import okhttp3.Headers
 import okhttp3.Interceptor
 import okhttp3.MediaType
 import okhttp3.OkHttpClient
 import okhttp3.Response
 import okhttp3.internal.http.HttpHeaders
-import okhttp3.internal.platform.Platform
-import okhttp3.internal.platform.Platform.INFO
 import okio.Buffer
 import okio.GzipSource
 import java.io.EOFException
@@ -27,6 +26,8 @@ class HttpLoggingInterceptor constructor(private val logger: Logger) : Intercept
 
     @Volatile
     internal var level = Level.NONE
+
+    private val isDebug = BuildConfig.DEBUG
 
     enum class Level {
         /** No logs.  */
@@ -140,7 +141,7 @@ class HttpLoggingInterceptor constructor(private val logger: Logger) : Intercept
                 val name = headers.name(i)
                 // Skip headers from the request body as they are explicitly logged above.
                 if (!"Content-Type".equals(name, ignoreCase = true) && !"Content-Length".equals(name, ignoreCase = true)) {
-                    if ("X-Auth-Token".equals(name, ignoreCase = true)) {
+                    if (!isDebug && "X-Auth-Token".equals(name, ignoreCase = true)) {
                         logger.log("$name: ${skipAuthToken(headers.value(i).length)}")
                     } else {
                         logger.log("$name: ${headers.value(i)}")
@@ -190,7 +191,7 @@ class HttpLoggingInterceptor constructor(private val logger: Logger) : Intercept
 
         val responseBody = response.body()
         val contentLength = responseBody!!.contentLength()
-        val bodySize = if (contentLength != -1L) contentLength.toString() + "-byte" else "unknown-length"
+        val bodySize = if (contentLength != -1L) "$contentLength-byte" else "unknown-length"
         val responseStr = if (response.message().isEmpty()) "" else " ${response.message()}"
         logger.log("<-- ${response.code()}$responseStr ${response.request().url()}"
                 + " (" + tookMs + "ms" + (if (!logHeaders) ", $bodySize body" else "") + ')'.toString())

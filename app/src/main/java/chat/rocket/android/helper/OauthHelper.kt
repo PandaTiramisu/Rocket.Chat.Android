@@ -1,15 +1,25 @@
 package chat.rocket.android.helper
 
+import chat.rocket.android.util.extensions.encodeToBase64
+import chat.rocket.android.util.extensions.generateRandomString
 import chat.rocket.android.util.extensions.removeTrailingSlash
 
 object OauthHelper {
 
     /**
-     * Returns the Github Oauth URL.
+     * Returns an unguessable random string used to protect against forgery attacks.
+     */
+    fun getState() =
+        ("{\"loginStyle\":\"popup\"," +
+                "\"credentialToken\":\"${generateRandomString(40)}\"," +
+                "\"isCordova\":true}").encodeToBase64()
+
+    /**
+     * Returns the GitHub Oauth URL.
      *
      * @param clientId The GitHub client ID.
      * @param state An unguessable random string used to protect against forgery attacks.
-     * @return The Github Oauth URL.
+     * @return The GitHub Oauth URL.
      */
     fun getGithubOauthUrl(clientId: String, state: String): String {
         return "https://github.com/login/oauth/authorize" +
@@ -36,12 +46,12 @@ object OauthHelper {
     }
 
     /**
-     * Returns the Linkedin Oauth URL.
+     * Returns the LinkedIn Oauth URL.
      *
-     * @param clientId The Linkedin client ID.
+     * @param clientId The LinkedIn client ID.
      * @param serverUrl The server URL.
      * @param state An unguessable random string used to protect against forgery attacks.
-     * @return The Linkedin Oauth URL.
+     * @return The LinkedIn Oauth URL.
      */
     fun getLinkedinOauthUrl(clientId: String, serverUrl: String, state: String): String {
         return "https://linkedin.com/oauth/v2/authorization" +
@@ -52,13 +62,13 @@ object OauthHelper {
     }
 
     /**
-     * Returns the Gitlab Oauth URL.
+     * Returns the GitLab Oauth URL.
      *
-     * @param host The Gitlab host.
-     * @param clientId The Gitlab client ID.
+     * @param host The GitLab host.
+     * @param clientId The GitLab client ID.
      * @param serverUrl The server URL.
      * @param state An unguessable random string used to protect against forgery attacks.
-     * @return The Gitlab Oauth URL.
+     * @return The GitLab Oauth URL.
      */
     fun getGitlabOauthUrl(
         host: String? = "https://gitlab.com",
@@ -84,12 +94,65 @@ object OauthHelper {
      * @return The Facebook Oauth URL.
      */
     fun getFacebookOauthUrl(clientId: String, serverUrl: String, state: String): String {
-        return  "https://facebook.com/v2.9/dialog/oauth" +
+        return "https://facebook.com/v2.9/dialog/oauth" +
                 "?client_id=$clientId" +
                 "&redirect_uri=${serverUrl.removeTrailingSlash()}/_oauth/facebook?close" +
                 "&state=$state" +
                 "&response_type=code" +
                 "&scope=email"
+    }
+
+    /**
+     * Returns the WordPress-Com Oauth URL.
+     *
+     * @param clientId The WordPress-Com client ID.
+     * @param serverUrl The server URL.
+     * @param state An unguessable random string used to protect against forgery attacks.
+     * @return The WordPress-Com Oauth URL.
+     */
+    fun getWordpressComOauthUrl(clientId: String, serverUrl: String, state: String): String {
+        return "https://public-api.wordpress.com/oauth2/authorize" +
+                "?client_id=$clientId" +
+                "&redirect_uri=${serverUrl.removeTrailingSlash()}/_oauth/wordpress?close" +
+                "&state=$state" +
+                "&response_type=code" +
+                "&scope=auth"
+    }
+
+    /**
+     * Returns the WordPress custom Oauth URL.
+     *
+     * @param host The WordPress custom OAuth host.
+     * @param authorizePath The WordPress custom OAuth authorization path.
+     * @param clientId The WordPress custom OAuth client ID.
+     * @param serverUrl The server URL.
+     * @param serviceName The service name.
+     * @param state An unguessable random string used to protect against forgery attacks.
+     * @param scope The WordPress custom OAuth scope.
+     * @return The WordPress custom Oauth URL.
+     */
+    fun getWordpressCustomOauthUrl(
+        host: String,
+        authorizePath: String,
+        clientId: String,
+        serverUrl: String,
+        serviceName: String,
+        state: String,
+        scope: String
+    ): String {
+        (authorizePath +
+                "?client_id=$clientId" +
+                "&redirect_uri=${serverUrl.removeTrailingSlash()}/_oauth/$serviceName?close" +
+                "&state=$state" +
+                "&scope=$scope" +
+                "&response_type=code"
+                ).let {
+            return if (it.contains(host)) {
+                it
+            } else {
+                host + it
+            }
+        }
     }
 
     /**
@@ -113,12 +176,18 @@ object OauthHelper {
         state: String,
         scope: String
     ): String {
-        return host +
-                authorizePath +
+        (authorizePath +
                 "?client_id=$clientId" +
                 "&redirect_uri=${serverUrl.removeTrailingSlash()}/_oauth/$serviceName" +
                 "&state=$state" +
                 "&scope=$scope" +
                 "&response_type=code"
+                ).let {
+            return if (it.contains(host)) {
+                it
+            } else {
+                host + it
+            }
+        }
     }
 }
