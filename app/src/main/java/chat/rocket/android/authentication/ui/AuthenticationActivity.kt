@@ -2,22 +2,25 @@ package chat.rocket.android.authentication.ui
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
-import android.support.v4.app.Fragment
-import android.support.v7.app.AppCompatActivity
+import android.view.Menu
+import android.view.MenuItem
+import androidx.appcompat.app.AppCompatActivity
+import androidx.fragment.app.Fragment
 import chat.rocket.android.R
-import chat.rocket.android.authentication.domain.model.LoginDeepLinkInfo
-import chat.rocket.android.authentication.domain.model.getLoginDeepLinkInfo
+import chat.rocket.android.authentication.domain.model.DeepLinkInfo
 import chat.rocket.android.authentication.presentation.AuthenticationPresenter
-import chat.rocket.android.authentication.server.ui.ServerFragment
-import chat.rocket.android.util.extensions.addFragment
+import chat.rocket.android.dynamiclinks.DynamicLinksForFirebase
+import chat.rocket.android.util.extensions.getDeepLinkInfo
+import chat.rocket.android.util.extensions.isDynamicLink
+import chat.rocket.android.util.extensions.isSupportedLink
+import chat.rocket.common.util.ifNull
 import dagger.android.AndroidInjection
 import dagger.android.AndroidInjector
 import dagger.android.DispatchingAndroidInjector
 import dagger.android.support.HasSupportFragmentInjector
-import kotlinx.coroutines.experimental.Job
-import kotlinx.coroutines.experimental.android.UI
-import kotlinx.coroutines.experimental.launch
+import kotlinx.android.synthetic.main.app_bar.*
 import javax.inject.Inject
 
 class AuthenticationActivity : AppCompatActivity(), HasSupportFragmentInjector {
@@ -25,51 +28,115 @@ class AuthenticationActivity : AppCompatActivity(), HasSupportFragmentInjector {
     lateinit var fragmentDispatchingAndroidInjector: DispatchingAndroidInjector<Fragment>
     @Inject
     lateinit var presenter: AuthenticationPresenter
-    val job = Job()
+    @Inject
+    lateinit var dynamicLinksManager: DynamicLinksForFirebase
 
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
-        setContentView(R.layout.activity_authentication)
-        setTheme(R.style.AuthenticationTheme)
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_authentication)
+        setupToolbar()
+        processIncomingIntent(intent)
     }
 
-    override fun onStart() {
-        super.onStart()
-        val deepLinkInfo = intent.getLoginDeepLinkInfo()
-        launch(UI + job) {
-            val newServer = intent.getBooleanExtra(INTENT_ADD_NEW_SERVER, false)
-            // if we got authenticateWithDeepLink information, pass true to newServer also
-            presenter.loadCredentials(newServer || deepLinkInfo != null) { authenticated ->
-                if (!authenticated) {
-                    showServerInput(deepLinkInfo)
-                }
-            }
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        intent?.let {
+            processIncomingIntent(it)
         }
     }
 
-    override fun onStop() {
-        job.cancel()
-        super.onStop()
+    private fun processIncomingIntent(intent: Intent) {
+        if (intent.isSupportedLink(this)) {
+            intent.data?.let { uri ->
+                if (uri.isDynamicLink(this)) {
+                    resolveDynamicLink(intent)
+                } else {
+                    uri.getDeepLinkInfo(baseContext)?.let {
+                        routeDeepLink(it)
+                    }.ifNull {
+                        loadCredentials()
+                    }
+                }
+            }
+        } else {
+            loadCredentials()
+        }
+    }
+
+    private fun resolveDynamicLink(intent: Intent) {
+        val deepLinkCallback = { returnedUri: Uri? ->
+            returnedUri?.let {
+                returnedUri.getDeepLinkInfo(baseContext)?.let {
+                    routeDeepLink(it)
+                }
+            }.ifNull {
+                loadCredentials()
+            }
+        }
+        dynamicLinksManager.getDynamicLink(intent, deepLinkCallback)
+    }
+
+    private fun setupToolbar() {
+        with(toolbar) {
+            setSupportActionBar(this)
+            setNavigationIcon(R.drawable.ic_arrow_back_white_24dp)
+            setNavigationOnClickListener { onBackPressed() }
+        }
+        supportActionBar?.setDisplayShowTitleEnabled(false)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         val currentFragment = supportFragmentManager.findFragmentById(R.id.fragment_container)
-        if (currentFragment != null) {
-            currentFragment.onActivityResult(requestCode, resultCode, data)
+        currentFragment?.onActivityResult(requestCode, resultCode, data)
+    }
+
+    override fun supportFragmentInjector(): AndroidInjector<Fragment> =
+        fragmentDispatchingAndroidInjector
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.legal, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem?): Boolean {
+        when (item?.itemId) {
+            R.id.action_terms_of_Service -> presenter.termsOfService(getString(R.string.action_terms_of_service))
+            R.id.action_privacy_policy -> presenter.privacyPolicy(getString(R.string.action_privacy_policy))
+        }
+        return super.onOptionsItemSelected(item)
+    }
+
+    private fun routeDeepLink(deepLinkInfo: DeepLinkInfo) {
+        presenter.loadCredentials(false) { isAuthenticated ->
+            if (isAuthenticated) {
+                showChatList(deepLinkInfo)
+            } else {
+                presenter.saveDeepLinkInfo(deepLinkInfo)
+                if (getString(R.string.server_url).isEmpty()) {
+                    presenter.toOnBoarding()
+                } else {
+                    presenter.toSignInToYourServer()
+                }
+            }
         }
     }
 
-    override fun supportFragmentInjector(): AndroidInjector<Fragment> {
-        return fragmentDispatchingAndroidInjector
-    }
-
-    fun showServerInput(deepLinkInfo: LoginDeepLinkInfo?) {
-        addFragment("ServerFragment", R.id.fragment_container, allowStateLoss = true) {
-            ServerFragment.newInstance(deepLinkInfo)
+    private fun loadCredentials() {
+        val newServer = intent.getBooleanExtra(INTENT_ADD_NEW_SERVER, false)
+        presenter.loadCredentials(newServer) { isAuthenticated ->
+            when {
+                isAuthenticated -> showChatList()
+                getString(R.string.server_url).isEmpty() -> presenter.toOnBoarding()
+                else -> presenter.toSignInToYourServer()
+            }
         }
     }
+
+    private fun showChatList() = presenter.toChatList()
+
+    private fun showChatList(deepLinkInfo: DeepLinkInfo) = presenter.toChatList(deepLinkInfo)
 }
 
 const val INTENT_ADD_NEW_SERVER = "INTENT_ADD_NEW_SERVER"

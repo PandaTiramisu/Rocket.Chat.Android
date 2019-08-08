@@ -12,12 +12,14 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Parcel
 import android.os.Parcelable
-import android.support.annotation.RequiresApi
-import android.support.v4.app.NotificationCompat
-import android.support.v4.app.NotificationManagerCompat
-import android.support.v4.app.RemoteInput
 import android.text.Html
 import android.text.Spanned
+import androidx.annotation.RequiresApi
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.RemoteInput
+import androidx.core.content.ContextCompat
+import androidx.core.text.HtmlCompat.FROM_HTML_MODE_LEGACY
 import chat.rocket.android.R
 import chat.rocket.android.main.ui.MainActivity
 import chat.rocket.android.server.domain.GetAccountInteractor
@@ -28,7 +30,7 @@ import chat.rocket.common.model.RoomType
 import chat.rocket.common.model.roomTypeOf
 import com.squareup.moshi.Json
 import com.squareup.moshi.Moshi
-import kotlinx.coroutines.experimental.runBlocking
+import kotlinx.coroutines.runBlocking
 import se.ansman.kotshi.JsonSerializable
 import se.ansman.kotshi.KotshiConstructor
 import timber.log.Timber
@@ -36,10 +38,6 @@ import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 
-/**
- * Refer to: https://github.com/RocketChat/Rocket.Chat.Android/blob/9e846b7fde8fe0c74b9e0117c37ce49293308db5/app/src/main/java/chat/rocket/android/push/PushManager.kt
- * for old source code.
- */
 class PushManager @Inject constructor(
     private val groupedPushes: GroupedPush,
     private val manager: NotificationManager,
@@ -80,7 +78,7 @@ class PushManager @Inject constructor(
 
             showNotification(pushMessage)
         } catch (ex: Exception) {
-            Timber.d(ex, "Error parsing PUSH message: $data")
+            Timber.e(ex, "Error parsing PUSH message: $data")
             ex.printStackTrace()
         }
     }
@@ -101,7 +99,7 @@ class PushManager @Inject constructor(
         val groupTuple = getGroupForHost(host)
 
         groupTuple.second.incrementAndGet()
-        val notIdListForHostname: MutableList<PushMessage>? = groupedPushes.hostToPushMessageList.get(host)
+        val notIdListForHostname: MutableList<PushMessage>? = groupedPushes.hostToPushMessageList[host]
         if (notIdListForHostname == null) {
             groupedPushes.hostToPushMessageList[host] = arrayListOf(pushMessage)
         } else {
@@ -299,17 +297,18 @@ class PushManager @Inject constructor(
     }
 
     private fun getContentIntent(context: Context, notificationId: Int, pushMessage: PushMessage, grouped: Boolean = false): PendingIntent {
-        val notificationIntent = context.changeServerIntent(pushMessage.info.host, chatRoomId = pushMessage.info.roomId)
-        // TODO - add support to go directly to the chatroom
-        /*if (!grouped) {
-            notificationIntent.putExtra(EXTRA_ROOM_ID, pushMessage.info.roomId)
-        }*/
+        val roomId = if (!grouped) pushMessage.info.roomId else null
+        val notificationIntent = context.changeServerIntent(pushMessage.info.host, chatRoomId = roomId)
         return PendingIntent.getActivity(context, random.nextInt(), notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT)
     }
 
     // CharSequence extensions
     private fun CharSequence.fromHtml(): Spanned {
-        return Html.fromHtml(this as String)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            Html.fromHtml(this as String, FROM_HTML_MODE_LEGACY, null, null)
+        } else {
+            Html.fromHtml(this as String)
+        }
     }
 
     // NotificationCompat.Builder extensions
@@ -365,14 +364,14 @@ class PushManager @Inject constructor(
         val res = context.resources
         val smallIcon = res.getIdentifier(
             "rocket_chat_notification", "drawable", context.packageName)
-        with(this, {
+        with(this) {
             setAutoCancel(true)
             setShowWhen(true)
-            color = context.resources.getColor(R.color.colorPrimary)
+            color = ContextCompat.getColor(context, R.color.colorPrimary)
             setDefaults(Notification.DEFAULT_ALL)
             setSmallIcon(smallIcon)
             setSound(alarmSound)
-        })
+        }
         return this
     }
 }
@@ -389,12 +388,12 @@ data class PushMessage(
 ) : Parcelable {
 
     constructor(parcel: Parcel) : this(
+        parcel.readString().orEmpty(),
+        parcel.readString().orEmpty(),
+        parcel.readParcelable(PushMessage::class.java.classLoader) ?: PushInfo.EMPTY,
         parcel.readString(),
         parcel.readString(),
-        parcel.readParcelable(PushMessage::class.java.classLoader),
-        parcel.readString(),
-        parcel.readString(),
-        parcel.readString(),
+        parcel.readString().orEmpty(),
         parcel.readString(),
         parcel.readString())
 
@@ -439,9 +438,9 @@ data class PushInfo @KotshiConstructor constructor(
     }
 
     constructor(parcel: Parcel) : this(
-        parcel.readString(),
-        parcel.readString(),
-        roomTypeOf(parcel.readString()),
+        parcel.readString().orEmpty(),
+        parcel.readString().orEmpty(),
+        roomTypeOf(parcel.readString().orEmpty()),
         parcel.readString(),
         parcel.readParcelable(PushInfo::class.java.classLoader))
 
@@ -467,7 +466,7 @@ data class PushInfo @KotshiConstructor constructor(
     }
 
     companion object CREATOR : Parcelable.Creator<PushInfo> {
-        val EMPTY = PushInfo(hostname = "", roomId = "", type = RoomType.CHANNEL, name = "",
+        val EMPTY = PushInfo(hostname = "", roomId = "", type = roomTypeOf(RoomType.CHANNEL), name = "",
             sender = null)
 
         override fun createFromParcel(parcel: Parcel): PushInfo {
@@ -487,7 +486,7 @@ data class PushSender @KotshiConstructor constructor(
     val name: String?
 ) : Parcelable {
     constructor(parcel: Parcel) : this(
-        parcel.readString(),
+        parcel.readString().orEmpty(),
         parcel.readString(),
         parcel.readString())
 

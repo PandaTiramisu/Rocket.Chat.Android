@@ -1,24 +1,22 @@
 package chat.rocket.android.helper
 
-import android.Manifest
-import android.app.Activity
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.media.MediaScannerConnection
 import android.os.Environment
-import android.support.design.widget.AppBarLayout
-import android.support.v7.widget.Toolbar
 import android.text.TextUtils
 import android.util.TypedValue
-import android.view.ContextThemeWrapper
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.widget.Toolbar
 import androidx.core.net.toUri
 import androidx.core.view.setPadding
 import chat.rocket.android.R
+import chat.rocket.android.helper.AndroidPermissionsHelper.checkWritingPermission
+import chat.rocket.android.helper.AndroidPermissionsHelper.hasWriteExternalStoragePermission
 import com.facebook.binaryresource.FileBinaryResource
 import com.facebook.cache.common.CacheKey
 import com.facebook.imageformat.ImageFormatChecker
@@ -26,6 +24,7 @@ import com.facebook.imagepipeline.cache.DefaultCacheKeyFactory
 import com.facebook.imagepipeline.core.ImagePipelineFactory
 import com.facebook.imagepipeline.request.ImageRequest
 import com.facebook.imagepipeline.request.ImageRequestBuilder
+import com.google.android.material.appbar.AppBarLayout
 import com.stfalcon.frescoimageviewer.ImageViewer
 import timber.log.Timber
 import java.io.File
@@ -35,7 +34,7 @@ object ImageHelper {
 
     // TODO - implement a proper image viewer with a proper Transition
     // TODO - We should definitely write our own ImageViewer
-    fun openImage(context: Context, imageUrl: String, imageName: String) {
+    fun openImage(context: Context, imageUrl: String, imageName: String? = "") {
         var imageViewer: ImageViewer? = null
         val request =
             ImageRequestBuilder.newBuilderWithSource(imageUrl.toUri())
@@ -53,8 +52,8 @@ object ImageHelper {
         )
         val toolbar = Toolbar(context).also {
             it.inflateMenu(R.menu.image_actions)
-            it.setOnMenuItemClickListener {
-                return@setOnMenuItemClickListener when (it.itemId) {
+            it.setOnMenuItemClickListener { view ->
+                return@setOnMenuItemClickListener when (view.itemId) {
                     R.id.action_save_image -> saveImage(context)
                     else -> true
                 }
@@ -62,20 +61,24 @@ object ImageHelper {
 
             val titleSize = context.resources
                 .getDimensionPixelSize(R.dimen.viewer_toolbar_title)
-            val titleTextView = TextView(context).also {
-                it.text = imageName
-                it.setTextColor(Color.WHITE)
-                it.setTextSize(TypedValue.COMPLEX_UNIT_PX, titleSize.toFloat())
-                it.ellipsize = TextUtils.TruncateAt.END
-                it.setSingleLine()
-                it.typeface = Typeface.DEFAULT_BOLD
-                it.setPadding(pad)
+            val titleTextView = TextView(context).also { tv ->
+                with(tv) {
+                    text = imageName
+                    setTextColor(Color.WHITE)
+                    setTextSize(TypedValue.COMPLEX_UNIT_PX, titleSize.toFloat())
+                    ellipsize = TextUtils.TruncateAt.END
+                    setSingleLine()
+                    typeface = Typeface.DEFAULT_BOLD
+                    setPadding(pad)
+                }
             }
 
-            val backArrowView = ImageView(context).also {
-                it.setImageResource(R.drawable.ic_arrow_back_white_24dp)
-                it.setOnClickListener { imageViewer?.onDismiss() }
-                it.setPadding(0, pad, pad, pad)
+            val backArrowView = ImageView(context).also { imgView ->
+                with(imgView) {
+                    setImageResource(R.drawable.ic_arrow_back_white_24dp)
+                    setOnClickListener { imageViewer?.onDismiss() }
+                    setPadding(0, pad, pad, pad)
+                }
             }
 
             val layoutParams = AppBarLayout.LayoutParams(
@@ -88,14 +91,16 @@ object ImageHelper {
         }
 
         val appBarLayout = AppBarLayout(context).also {
-            it.layoutParams = lparams
-            it.setBackgroundColor(Color.BLACK)
-            it.addView(
-                toolbar, AppBarLayout.LayoutParams(
-                    AppBarLayout.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
+            with(it) {
+                layoutParams = lparams
+                setBackgroundColor(Color.BLACK)
+                addView(
+                        toolbar, AppBarLayout.LayoutParams(
+                        AppBarLayout.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
                 )
-            )
+                )
+            }
         }
 
         val builder = ImageViewer.createPipelineDraweeControllerBuilder()
@@ -111,7 +116,7 @@ object ImageHelper {
     }
 
     private fun saveImage(context: Context): Boolean {
-        if (!canWriteToExternalStorage(context)) {
+        if (!hasWriteExternalStoragePermission(context)) {
             checkWritingPermission(context)
             return false
         }
@@ -145,23 +150,5 @@ object ImageHelper {
             }
         }
         return true
-    }
-
-    private fun canWriteToExternalStorage(context: Context): Boolean {
-        return AndroidPermissionsHelper.checkPermission(
-            context,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE
-        )
-    }
-
-    private fun checkWritingPermission(context: Context) {
-        if (context is ContextThemeWrapper && context.baseContext is Activity) {
-            val activity = context.baseContext as Activity
-            AndroidPermissionsHelper.requestPermission(
-                activity,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                AndroidPermissionsHelper.WRITE_EXTERNAL_STORAGE_CODE
-            )
-        }
     }
 }

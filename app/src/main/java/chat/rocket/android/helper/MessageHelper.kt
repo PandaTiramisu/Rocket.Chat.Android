@@ -3,6 +3,7 @@ package chat.rocket.android.helper
 import chat.rocket.android.server.domain.GetCurrentServerInteractor
 import chat.rocket.android.server.domain.GetSettingsInteractor
 import chat.rocket.android.server.domain.PublicSettings
+import chat.rocket.android.server.domain.useSpecialCharsOnRoom
 import chat.rocket.android.server.domain.useRealName
 import chat.rocket.common.model.RoomType
 import chat.rocket.core.model.ChatRoom
@@ -16,16 +17,21 @@ class MessageHelper @Inject constructor(
     private val currentServer = serverInteractor.get()!!
     private val settings: PublicSettings = getSettingsInteractor.get(currentServer)
 
-    fun createPermalink(message: Message, chatRoom: ChatRoom): String {
+    fun createPermalink(message: Message, chatRoom: ChatRoom, markdownSyntax: Boolean = true): String {
         val type = when (chatRoom.type) {
             is RoomType.PrivateGroup -> "group"
             is RoomType.Channel -> "channel"
             is RoomType.DirectMessage -> "direct"
-            is RoomType.Livechat -> "livechat"
+            is RoomType.LiveChat -> "livechat"
             else -> "custom"
         }
-        val name = if (settings.useRealName()) chatRoom.fullName ?: chatRoom.name else chatRoom.name
-        return "[ ]($currentServer/$type/$name?msg=${message.id}) "
+        val name = if (settings.useSpecialCharsOnRoom() || settings.useRealName()) {
+            chatRoom.fullName ?: chatRoom.name
+        } else {
+            chatRoom.name
+        }
+        val permalink = "$currentServer/$type/$name?msg=${message.id}"
+        return if (markdownSyntax) "[ ]($permalink) " else permalink
     }
 
     fun messageIdFromPermalink(permalink: String): String? {

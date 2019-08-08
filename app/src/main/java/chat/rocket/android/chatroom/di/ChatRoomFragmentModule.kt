@@ -1,13 +1,21 @@
 package chat.rocket.android.chatroom.di
 
-import android.arch.lifecycle.LifecycleOwner
+import android.app.Application
+import androidx.lifecycle.LifecycleOwner
 import chat.rocket.android.chatroom.presentation.ChatRoomView
 import chat.rocket.android.chatroom.ui.ChatRoomFragment
-import chat.rocket.android.core.lifecycle.CancelStrategy
+import chat.rocket.android.chatrooms.adapter.RoomUiModelMapper
 import chat.rocket.android.dagger.scope.PerFragment
+import chat.rocket.android.db.ChatRoomDao
+import chat.rocket.android.db.DatabaseManager
+import chat.rocket.android.db.UserDao
+import chat.rocket.android.server.domain.GetCurrentUserInteractor
+import chat.rocket.android.server.domain.PermissionsInteractor
+import chat.rocket.android.server.domain.SettingsRepository
+import chat.rocket.android.server.domain.TokenRepository
 import dagger.Module
 import dagger.Provides
-import kotlinx.coroutines.experimental.Job
+import javax.inject.Named
 
 @Module
 class ChatRoomFragmentModule {
@@ -26,7 +34,41 @@ class ChatRoomFragmentModule {
 
     @Provides
     @PerFragment
-    fun provideCancelStrategy(owner: LifecycleOwner, jobs: Job): CancelStrategy {
-        return CancelStrategy(owner, jobs)
+    fun provideChatRoomDao(manager: DatabaseManager): ChatRoomDao = manager.chatRoomDao()
+
+    @Provides
+    @PerFragment
+    fun provideUserDao(manager: DatabaseManager): UserDao = manager.userDao()
+
+    @Provides
+    @PerFragment
+    fun provideGetCurrentUserInteractor(
+        tokenRepository: TokenRepository,
+        @Named("currentServer") currentServer: String?,
+        userDao: UserDao
+    ): GetCurrentUserInteractor {
+        return currentServer?.let { GetCurrentUserInteractor(tokenRepository, it, userDao) }!!
+    }
+
+    @Provides
+    @PerFragment
+    fun provideRoomMapper(
+        context: Application,
+        repository: SettingsRepository,
+        userInteractor: GetCurrentUserInteractor,
+        tokenRepository: TokenRepository,
+        @Named("currentServer") currentServer: String?,
+        permissionsInteractor: PermissionsInteractor
+    ): RoomUiModelMapper {
+        return currentServer?.let {
+            RoomUiModelMapper(
+                context,
+                repository.get(it),
+                userInteractor,
+                tokenRepository,
+                it,
+                permissionsInteractor
+            )
+        }!!
     }
 }

@@ -2,22 +2,29 @@ package chat.rocket.android.chatrooms.presentation
 
 import chat.rocket.android.core.behaviours.LoadingView
 import chat.rocket.android.core.behaviours.MessageView
-import chat.rocket.core.internal.realtime.socket.model.State
-import chat.rocket.core.model.ChatRoom
 
 interface ChatRoomsView : LoadingView, MessageView {
 
     /**
-     * Shows the chat rooms.
+     * Setups the toolbar with the current logged in server name.
      *
-     * @param newDataSet The new data set to show.
+     * @param serverName The current logged in server name to show on Toolbar.
      */
-    suspend fun updateChatRooms(newDataSet: List<ChatRoom>)
+    fun setupToolbar(serverName: String)
 
     /**
-     *  Shows no chat rooms to display.
+     * Setups the sorting and grouping in the bases of the user preference for
+     * the current logged in server.
+     *
+     * @param isSortByName True if sorting by name, false otherwise.
+     * @param isUnreadOnTop True if grouping by unread on top, false otherwise.
+     * @param isGroupByType True if grouping by type , false otherwise.
+     * @param isGroupByFavorites True if grouping by favorites, false otherwise.
      */
-    fun showNoChatRoomsToDisplay()
-
-    fun showConnectionState(state: State)
+    fun setupSortingAndGrouping(
+        isSortByName: Boolean,
+        isUnreadOnTop: Boolean,
+        isGroupByType: Boolean,
+        isGroupByFavorites: Boolean
+    )
 }

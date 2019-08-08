@@ -1,18 +1,20 @@
 package chat.rocket.android.favoritemessages.ui
 
 import android.os.Bundle
-import android.support.v4.app.Fragment
-import android.support.v7.widget.DefaultItemAnimator
-import android.support.v7.widget.LinearLayoutManager
-import android.support.v7.widget.RecyclerView
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.isVisible
+import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.DefaultItemAnimator
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import chat.rocket.android.R
+import chat.rocket.android.analytics.AnalyticsManager
+import chat.rocket.android.analytics.event.ScreenViewEvent
 import chat.rocket.android.chatroom.adapter.ChatRoomAdapter
 import chat.rocket.android.chatroom.ui.ChatRoomActivity
-import chat.rocket.android.chatroom.viewmodel.BaseViewModel
+import chat.rocket.android.chatroom.uimodel.BaseUiModel
 import chat.rocket.android.favoritemessages.presentation.FavoriteMessagesPresenter
 import chat.rocket.android.favoritemessages.presentation.FavoriteMessagesView
 import chat.rocket.android.helper.EndlessRecyclerViewScrollListener
@@ -23,32 +25,30 @@ import dagger.android.support.AndroidSupportInjection
 import kotlinx.android.synthetic.main.fragment_favorite_messages.*
 import javax.inject.Inject
 
-fun newInstance(chatRoomId: String): Fragment {
-    return FavoriteMessagesFragment().apply {
-        arguments = Bundle(1).apply {
-            putString(INTENT_CHAT_ROOM_ID, chatRoomId)
-        }
+fun newInstance(chatRoomId: String): Fragment = FavoriteMessagesFragment().apply {
+    arguments = Bundle(1).apply {
+        putString(INTENT_CHAT_ROOM_ID, chatRoomId)
     }
 }
 
+internal const val TAG_FAVORITE_MESSAGES_FRAGMENT = "FavoriteMessagesFragment"
 private const val INTENT_CHAT_ROOM_ID = "chat_room_id"
 
 class FavoriteMessagesFragment : Fragment(), FavoriteMessagesView {
-    private lateinit var chatRoomId: String
-    private lateinit var adapter: ChatRoomAdapter
     @Inject
     lateinit var presenter: FavoriteMessagesPresenter
+    @Inject
+    lateinit var analyticsManager: AnalyticsManager
+    private lateinit var chatRoomId: String
+    private val adapter = ChatRoomAdapter(enableActions = false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AndroidSupportInjection.inject(this)
 
-        val bundle = arguments
-        if (bundle != null) {
-            chatRoomId = bundle.getString(INTENT_CHAT_ROOM_ID)
-        } else {
-            requireNotNull(bundle) { "no arguments supplied when the fragment was instantiated" }
-        }
+        arguments?.run {
+            chatRoomId = getString(INTENT_CHAT_ROOM_ID, "")
+        } ?: requireNotNull(arguments) { "no arguments supplied when the fragment was instantiated" }
     }
 
     override fun onCreateView(
@@ -61,15 +61,15 @@ class FavoriteMessagesFragment : Fragment(), FavoriteMessagesView {
         super.onViewCreated(view, savedInstanceState)
         setupToolbar()
         presenter.loadFavoriteMessages(chatRoomId)
+
+        analyticsManager.logScreenView(ScreenViewEvent.FavoriteMessages)
     }
 
-    override fun showFavoriteMessages(favoriteMessages: List<BaseViewModel<*>>) {
+    override fun showFavoriteMessages(favoriteMessages: List<BaseUiModel<*>>) {
         ui {
             if (recycler_view.adapter == null) {
-                adapter = ChatRoomAdapter(enableActions = false)
                 recycler_view.adapter = adapter
-                val linearLayoutManager =
-                    LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false)
+                val linearLayoutManager = LinearLayoutManager(context)
                 recycler_view.layoutManager = linearLayoutManager
                 recycler_view.itemAnimator = DefaultItemAnimator()
                 if (favoriteMessages.size >= 30) {
@@ -78,7 +78,7 @@ class FavoriteMessagesFragment : Fragment(), FavoriteMessagesView {
                         override fun onLoadMore(
                             page: Int,
                             totalItemsCount: Int,
-                            recyclerView: RecyclerView?
+                            recyclerView: RecyclerView
                         ) {
                             presenter.loadFavoriteMessages(chatRoomId)
                         }
@@ -110,9 +110,6 @@ class FavoriteMessagesFragment : Fragment(), FavoriteMessagesView {
     }
 
     private fun setupToolbar() {
-        (activity as ChatRoomActivity).let {
-            it.showToolbarTitle(getString(R.string.title_favorite_messages))
-            it.hideToolbarChatRoomIcon()
-        }
+        (activity as ChatRoomActivity).setupToolbarTitle(getString(R.string.title_favorite_messages))
     }
 }

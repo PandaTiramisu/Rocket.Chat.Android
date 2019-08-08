@@ -1,24 +1,28 @@
 package chat.rocket.android.chatroom.adapter
 
-import android.support.v7.widget.RecyclerView
+import android.view.ContextThemeWrapper
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.children
+import androidx.lifecycle.Lifecycle
+import androidx.recyclerview.widget.RecyclerView
 import chat.rocket.android.R
-import chat.rocket.android.chatroom.ui.bottomsheet.BottomSheetMenu
-import chat.rocket.android.chatroom.ui.bottomsheet.adapter.ActionListAdapter
-import chat.rocket.android.chatroom.viewmodel.BaseViewModel
-import chat.rocket.android.widget.emoji.Emoji
-import chat.rocket.android.widget.emoji.EmojiReactionListener
+import chat.rocket.android.chatroom.ui.bottomsheet.MessageActionsBottomSheet
+import chat.rocket.android.chatroom.uimodel.BaseUiModel
+import chat.rocket.android.emoji.Emoji
+import chat.rocket.android.emoji.EmojiReactionListener
+import chat.rocket.android.util.extensions.inflate
+import chat.rocket.android.util.extensions.toList
 import chat.rocket.core.model.Message
 import chat.rocket.core.model.isSystemMessage
 import com.google.android.flexbox.FlexDirection
+import com.google.android.flexbox.FlexWrap
 import com.google.android.flexbox.FlexboxLayoutManager
-import ru.whalemare.sheetmenu.extension.inflate
-import ru.whalemare.sheetmenu.extension.toList
+import com.google.android.flexbox.JustifyContent
 
-abstract class BaseViewHolder<T : BaseViewModel<*>>(
+abstract class BaseViewHolder<T : BaseUiModel<*>>(
     itemView: View,
     private val listener: ActionsListener,
     var reactionListener: EmojiReactionListener? = null
@@ -39,13 +43,12 @@ abstract class BaseViewHolder<T : BaseViewModel<*>>(
     private fun bindReactions() {
         data?.let {
             val recyclerView = itemView.findViewById(R.id.recycler_view_reactions) as RecyclerView
-            val adapter: MessageReactionsAdapter
-            if (recyclerView.adapter == null) {
-                adapter = MessageReactionsAdapter()
+            val adapter: MessageReactionsAdapter = if (recyclerView.adapter == null) {
+                MessageReactionsAdapter()
             } else {
-                adapter = recyclerView.adapter as MessageReactionsAdapter
-                adapter.clear()
+                recyclerView.adapter as MessageReactionsAdapter
             }
+            adapter.clear()
 
             if (it.nextDownStreamMessage == null) {
                 adapter.listener = object : EmojiReactionListener {
@@ -58,12 +61,21 @@ abstract class BaseViewHolder<T : BaseViewModel<*>>(
                             reactionListener?.onReactionAdded(messageId, emoji)
                         }
                     }
+
+                    override fun onReactionLongClicked(shortname: String, isCustom: Boolean, url: String?, usernames: List<String>) {
+                        reactionListener?.onReactionLongClicked(shortname, isCustom,url, usernames)
+                    }
                 }
+
                 val context = itemView.context
                 val manager = FlexboxLayoutManager(context, FlexDirection.ROW)
+                manager.justifyContent = JustifyContent.FLEX_START
                 recyclerView.layoutManager = manager
                 recyclerView.adapter = adapter
-                adapter.addReactions(it.reactions.filterNot { it.unicode.startsWith(":") })
+
+                if (it.reactions.isNotEmpty()) {
+                    itemView.post { adapter.addReactions(it.reactions) }
+                }
             }
         }
     }
@@ -80,20 +92,27 @@ abstract class BaseViewHolder<T : BaseViewModel<*>>(
             data?.let { vm ->
                 vm.message.let {
                     val menuItems = view.context.inflate(R.menu.message_actions).toList()
-                    menuItems.find { it.itemId == R.id.action_message_unpin }?.apply {
-                        setTitle(if (it.pinned) R.string.action_msg_unpin else R.string.action_msg_pin)
+                    menuItems.find { it.itemId == R.id.action_pin }?.apply {
+                        setTitle(if (it.pinned) R.string.action_unpin else R.string.action_pin)
                         isChecked = it.pinned
                     }
 
-                    menuItems.find { it.itemId == R.id.action_message_star }?.apply {
+                    menuItems.find { it.itemId == R.id.action_star }?.apply {
                         val isStarred = it.starred?.isNotEmpty() ?: false
-                        setTitle(if (isStarred) R.string.action_msg_unstar else R.string.action_msg_star)
+                        setTitle(if (isStarred) R.string.action_unstar else R.string.action_star)
                         isChecked = isStarred
                     }
-                    val adapter = ActionListAdapter(menuItems = menuItems.filterNot {
-                        vm.menuItemsToHide.contains(it.itemId)
-                    }, callback = this@BaseViewHolder)
-                    BottomSheetMenu(adapter).show(view.context)
+                    view.context?.let {
+                        if (it is ContextThemeWrapper && it.baseContext is AppCompatActivity) {
+                            with(it.baseContext as AppCompatActivity) {
+                                if (this.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                                    val actionsBottomSheet = MessageActionsBottomSheet()
+                                    actionsBottomSheet.addItems(menuItems, this@BaseViewHolder)
+                                    actionsBottomSheet.show(supportFragmentManager, null)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
